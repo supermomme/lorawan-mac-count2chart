@@ -1,5 +1,6 @@
 var admin = require("firebase-admin");
 var moment = require('moment')
+var fs = require('fs')
 
 // Fetch the service account key JSON file contents
 var serviceAccount = require("./serviceAccount.json");
@@ -31,11 +32,22 @@ client.on('message', function (topic, message) {
   const { dev_id, payload_fields } = JSON.parse(message.toString())
   if (!dev_id || !payload_fields || !payload_fields.peopleCount) return
 
-  const date = moment().format('MM-DD-YYYY-HH-mm-ss');
+  const date = moment()
   ref.update({
-    [`${dev_id}/${date}`]: payload_fields.peopleCount
+    [`${dev_id}/${date.format('MM-DD-YYYY-HH-mm-ss')}`]: payload_fields.peopleCount
   })
+  
+  createOrAppendFile(dev_id, date, payload_fields.peopleCount)
 
-  console.log({dev_id, payload_fields, date});
-  // client.end()
+
+  // console.log({dev_id, payload_fields, firebaseDate});
 })
+
+
+const createOrAppendFile = (boardName, momentDate, peopleCount) => {
+  const filename = `./csv/${momentDate.format('DD.MM.YYYY')}-${boardName}.csv`
+  if (!fs.existsSync(filename)) {
+    fs.appendFileSync(filename, `Zeit;Anzahl\n`)
+  }
+  fs.appendFileSync(filename, `${momentDate.format('HH:mm:ss')};${peopleCount}\n`)
+}
