@@ -20,7 +20,7 @@ var ref = db.ref("/");
 var mqtt = require('mqtt')
 var ttnAuthentication = require("./ttnAuthentication.json");
 
-var client  = mqtt.connect('mqtt://eu.thethings.network', ttnAuthentication)
+var client = mqtt.connect('mqtt://eu.thethings.network', ttnAuthentication)
 
 
 
@@ -34,7 +34,7 @@ client.on('message', function (topic, message) {
 
   const date = moment()
   ref.update({
-    [`${dev_id}/${date.format('MM-DD-YYYY-HH-mm-ss')}`]: payload_fields.peopleCount
+    [`new/${dev_id}/${date.format('YYYY-MM-DD')}/${date.format('HH-mm-ss')}`]: payload_fields.peopleCount
   })
   
   createOrAppendFile(dev_id, date, payload_fields.peopleCount)

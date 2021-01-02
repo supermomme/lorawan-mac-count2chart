@@ -1,7 +1,25 @@
+const queryString = window.location.search;
+const urlParams = new URLSearchParams(queryString);
+const date = urlParams.get('date')
+
+
+const momentX = date == null ? moment() : moment(date, "DD.MM.YYYY")
+
+const momentsThisDay = []
+const startOfDay = momentX.clone().startOf('day')
+const endOfDay = momentX.clone().endOf('day')
+var duration = moment.duration(endOfDay.diff(startOfDay));
+console.log(Math.floor(duration.asMinutes()))
+for (let i = 0; i <= Math.floor(duration.asMinutes()); i++) {
+  momentsThisDay.push(startOfDay.clone().add(i, 'minutes'))
+}
+
 var ctx = document.getElementById('chart').getContext('2d');
 var myChart = new Chart(ctx, {
   type: 'line',
-  data: {},
+  data: {
+    labels: momentsThisDay.map(v => v.format('DD.MM.YYYY HH:mm'))
+  },
   options: {
     maintainAspectRatio: false,
     animation: {
@@ -25,7 +43,6 @@ var myChart = new Chart(ctx, {
   }
 });
 
-
 function addData(chart, label, data) {
   chart.data.labels.push(label);
   chart.data.datasets.forEach((dataset) => {
@@ -47,54 +64,60 @@ firebase.initializeApp({
   databaseURL: "https://maccount-e3d11-default-rtdb.europe-west1.firebasedatabase.app",
 });
 
-
-
 const startDate = moment().startOf('day')
 const endDate = moment().endOf('day')
 
-var database = firebase.database().ref('/');
-database.once('value', (snapshot) =>{
-  const data = snapshot.val();
-  const allDates = Object.keys(data).reduce((prev, boardName) => {
-    return [
-      ...prev,
-      ...Object.keys(data[boardName]).reduce((prev, dateString) => {
-        return [
-          ...prev,
-          { original: dateString, moment: moment(dateString, "MM-DD-YYYY-HH-mm-ss") }
-        ]
-      }, [])
-    ]
-  }, []).filter(v => v.moment.isAfter(startDate) && v.moment.isBefore(endDate)).sort((a, b) => a.moment.isAfter(b.moment) ? 1 : -1)
+const database = firebase.database();
 
-  myChart.data.labels = allDates.map(v => v.moment.format('DD.MM.YYYY HH:mm:ss'))
-  myChart.data.datasets = []
+const boards = {
+  breadboard1: database.ref('/new/breadboard1'),
+  momme1: database.ref('/new/momme1'),
+  noboard1: database.ref('/new/noboard1'),
+  noboard2: database.ref('/new/noboard2'),
+  noboard3: database.ref('/new/noboard3'),
+  noboard4: database.ref('/new/noboard4'),
+  noboard5: database.ref('/new/noboard5'),
+}
 
-  for (const boardName in data) {
-    if (data.hasOwnProperty(boardName)) {
-      const boardData = allDates.reduce((prev, cur) => [...prev, null], [])
-      for (const dateString in data[boardName]) {
-        let allDateIndex = allDates.findIndex(v => v.original === dateString)
-        if (allDateIndex != -1) {
-          boardData[allDateIndex] = data[boardName][dateString]
+for (const boardName in boards) {
+  boards[boardName].child(startOfDay.format('YYYY-MM-DD')).on('value', (snapshot) => {
+    const data = snapshot.val()
+    if (data == undefined) return
+    let minuteBuckets = Object.keys(data).reduce((prev, cur) => {
+      let min = cur.substring(0, 5)
+      if (prev[min] == undefined) {
+        prev[min] = {
+          val: data[cur],
+          count: 1
         }
+      } else {
+        prev[min].val += data[cur]
+        prev[min].count++
       }
-      
+      return prev
+    }, {})
+    minuteBuckets = Object.keys(minuteBuckets).reduce((prev, cur) => {
+      prev[cur] = minuteBuckets[cur].val / minuteBuckets[cur].count
+      return prev
+    }, {})
+    const chartData = momentsThisDay.map(m => minuteBuckets[m.format('HH-mm')])
+    const datasetIndex = myChart.data.datasets.findIndex(v => v.label == boardName)
+    if (datasetIndex === -1) {
       myChart.data.datasets.push({
         label: boardName,
-        data: boardData,
+        data: chartData,
         backgroundColor: boardName.toColor(),
         borderColor: boardName.toColor(),
         fill: false,
         lineTension: 0,
         showLine: false,
       })
+    } else {
+      myChart.data.datasets[datasetIndex].data = chartData
     }
-  }
-  
-  myChart.update();
-});
-
+    myChart.update();
+  })
+}
 
 
 String.prototype.toColor = function() {
